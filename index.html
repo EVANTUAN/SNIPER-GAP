@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SNIPER GAP - EVANTUAN</title>
+    <title>SNIPER GAP - EVANTUAN VIP</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* GIỮ NGUYÊN CSS CŨ 100% */
+        /* --- 1. GIỮ NGUYÊN CSS GỐC TỪ BEST.HTML (PHẦN TRÊN) --- */
         :root {
             --bg-color: #05080a; 
             --card-bg: rgba(13, 19, 26, 0.95);
@@ -18,6 +18,11 @@
             --down: #ff4d4d;
             --neon-green: 0 0 20px rgba(0, 255, 170, 0.3);
             --neon-red: 0 0 20px rgba(255, 77, 77, 0.3);
+            
+            /* Màu Alert mới */
+            --tp-color: #00ffaa;
+            --sl-color: #ff4d4d;
+            --any-color: #00f3ff;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -39,7 +44,7 @@
             width: 100%; max-width: 450px; 
             min-height: 100dvh;
             display: flex; flex-direction: column;
-            padding: 16px 20px 40px 20px;
+            padding: 16px 20px 40px 20px; /* Giữ nguyên padding gốc */
             gap: 12px;
             position: relative;
         }
@@ -80,7 +85,7 @@
             cursor: pointer; 
         }
         
-        input {
+        #btcd-input {
             width: 120px; 
             background: #000;
             border: 1px solid #1a2533; 
@@ -90,10 +95,10 @@
             text-align: center; outline: none;
             transition: border-color 0.3s, color 0.3s;
         }
-        
-        input:focus { border-color: var(--cyan); }
-        input.manual-mode { border-color: var(--text-dim); color: #fff; background: #111; }
+        #btcd-input:focus { border-color: var(--cyan); }
+        #btcd-input.manual-mode { border-color: var(--text-dim); color: #fff; background: #111; }
 
+        /* --- SCOPE GAP GIỮ NGUYÊN TỈ LỆ 100% --- */
         .scope-container {
             flex: 1; display: flex; flex-direction: column; 
             justify-content: center; align-items: center;
@@ -102,7 +107,7 @@
             border-radius: 16px;
             position: relative; margin: 10px 0;
             padding: 20px 0;
-            min-height: 200px;
+            min-height: 200px; /* Chiều cao gốc */
         }
 
         .scope-corner {
@@ -139,17 +144,69 @@
             margin-top: 5px; font-size: 0.7rem; color: var(--text-dim); font-weight: 600;
         }
 
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        /* --- 2. CSS CHO GRID 4 CỘT (TỐI ƯU SONY XPERIA) --- */
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); /* 4 Cột đều nhau */
+            gap: 6px; /* Khoảng cách nhỏ để vừa màn hình hẹp */
+            margin-bottom: 10px; 
+        }
+        
         .card {
             background: var(--card-bg); 
-            padding: 10px 14px; border-radius: 10px;
+            padding: 6px 4px; /* Padding nhỏ gọn */
+            border-radius: 8px;
             border: 1px solid var(--border);
             display: flex; flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 55px; /* Chiều cao tối thiểu */
         }
-        .label { font-size: 0.7rem; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .val { font-size: 1.3rem; font-weight: 600; color: #fff; margin-top: 2px; }
-        .card.full { grid-column: span 2; flex-direction: row; justify-content: space-between; align-items: center; }
-        .card.full .val { margin-top: 0; }
+
+        .label { 
+            font-size: 0.6rem; /* Font chữ nhãn nhỏ lại */
+            color: var(--text-dim); 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0; 
+            white-space: nowrap; /* Không xuống dòng */
+        }
+        
+        .val { 
+            font-size: 1rem; /* Font số vừa phải */
+            font-weight: 600; 
+            color: #fff; 
+            margin-top: 2px; 
+        }
+        
+        /* Card Full (BTCD) nằm dưới cùng */
+        .card.full { 
+            grid-column: span 4; 
+            flex-direction: row; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 8px 15px;
+        }
+        .card.full .val { margin-top: 0; font-size: 1.2rem; }
+        .card.full .label { font-size: 0.7rem; letter-spacing: 1px; }
+
+        /* Style Input trong suốt */
+        .trade-input {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            width: 100%;
+            padding: 0; margin: 0; outline: none;
+            text-align: center;
+            -moz-appearance: textfield;
+        }
+        .trade-input::-webkit-outer-spin-button,
+        .trade-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .trade-input:focus { color: var(--cyan); }
+        .trade-input::placeholder { opacity: 0; }
 
         .action-bar {
             padding: 20px; border-radius: 12px; text-align: center;
@@ -165,6 +222,11 @@
 
         .pulse { animation: flash 0.3s ease-out; }
         @keyframes flash { 0% { filter: brightness(2); } 100% { filter: brightness(1); } }
+
+        /* Alert Effects */
+        .hit-tp { border-color: var(--tp-color) !important; box-shadow: 0 0 10px var(--tp-color) inset !important; }
+        .hit-sl { border-color: var(--sl-color) !important; box-shadow: 0 0 10px var(--sl-color) inset !important; }
+        .hit-any { border-color: var(--any-color) !important; box-shadow: 0 0 10px var(--any-color) inset !important; }
     </style>
 </head>
 <body onclick="initTrading()">
@@ -200,10 +262,28 @@
     <div class="grid">
         <div class="card"><span class="label">BTC</span><div id="btc-p" class="val">0.00</div></div>
         <div class="card"><span class="label">ETH</span><div id="eth-p" class="val">0.00</div></div>
-        <div class="card"><span class="label">ETH/BTC</span><div id="ratio" class="val" style="color:var(--cyan)">0.000000</div></div>
-        <div class="card"><span class="label">FAIR VAL</span><div id="fv" class="val">0.000000</div></div>
+        <div class="card"><span class="label">ETH/BTC</span><div id="ratio" class="val" style="color:var(--cyan)">0.00</div></div>
+        <div class="card"><span class="label">FAIR VAL</span><div id="fv" class="val">0.00</div></div>
+
+        <div class="card">
+            <span class="label">ENTRY</span>
+            <input type="number" id="inp-entry" class="trade-input" placeholder=".">
+        </div>
+        <div class="card" id="card-tp">
+            <span class="label">TP</span>
+            <input type="number" id="inp-tp" class="trade-input" placeholder=".">
+        </div>
+        <div class="card" id="card-sl">
+            <span class="label">SL</span>
+            <input type="number" id="inp-sl" class="trade-input" placeholder="." readonly>
+        </div>
+        <div class="card" id="card-any">
+            <span class="label">ANY</span>
+            <input type="number" id="inp-any" class="trade-input" placeholder=".">
+        </div>
+
         <div class="card full">
-            <span class="label">BTC.D</span>
+            <span class="label">BTC.D STATUS</span>
             <div id="btcd-rt" class="val" style="color:var(--cyan)">WAITING...</div>
         </div>
     </div>
@@ -212,14 +292,11 @@
 </div>
 
 <script type="module">
-    // --- KẾT NỐI FIREBASE (THAY THẾ NTFY) ---
+    // --- GIỮ NGUYÊN LOGIC TELEGRAM & BOT ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
 
-    const firebaseConfig = {
-        databaseURL: "https://sniper-gap-default-rtdb.asia-southeast1.firebasedatabase.app"
-    };
-
+    const firebaseConfig = { databaseURL: "https://sniper-gap-default-rtdb.asia-southeast1.firebasedatabase.app" };
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const btcdRef = ref(db, 'btcd');
@@ -227,60 +304,151 @@
     const D_REF = 59.52; 
     const P_REF = 0.034610; 
     const SENSITIVITY = 3.3;
+    const TELEGRAM_TOKEN = "8515054406:AAEy6ywkkUqTybyBXKHMZUfLiCdwb1A13Yw";
+    const TELEGRAM_CHAT_ID = "5163898258";
 
-    // Object chứa giá
     let prices = { btc: 0, eth: 0, ratio: 0, btcd_cloud: 0 };
     let isAlarming = false;
     let alarmInterval = null;
     let wakeLock = null;
     let audioStarted = false;
-    let appState = 0; // 0: CLOUD, 1: MANUAL
+    let appState = 0; 
     let lastHeartbeat = Date.now();
+    let lastAlertTime = { tp: 0, sl: 0, any: 0 };
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const inputEl = document.getElementById('btcd-input');
     const labelEl = document.getElementById('status-label');
     const dotEl = document.getElementById('connection-dot');
     
-    // --- CÁC HÀM XỬ LÝ SỰ KIỆN (BẮT BUỘC DÙNG WINDOW ĐỂ GỌI TỪ HTML) ---
-    window.initTrading = function() {
-        if (!audioStarted) {
-            audioCtx.resume();
-            audioStarted = true;
-        }
-        stopAlarm();
-        requestWakeLock();
+    // Khai báo Elements Mới
+    const inpEntry = document.getElementById('inp-entry');
+    const inpTp = document.getElementById('inp-tp');
+    const inpSl = document.getElementById('inp-sl');
+    const inpAny = document.getElementById('inp-any');
+    const cardTp = document.getElementById('card-tp');
+    const cardSl = document.getElementById('card-sl');
+    const cardAny = document.getElementById('card-any');
+
+    // Logic Auto SL (100% Entry)
+    inpEntry.addEventListener('input', () => {
+        const val = parseInt(inpEntry.value);
+        if (!isNaN(val)) inpSl.value = val * 2;
+        else inpSl.value = "";
+        resetAlerts('sl'); 
+    });
+
+    inpTp.addEventListener('input', () => resetAlerts('tp'));
+    inpAny.addEventListener('input', () => resetAlerts('any'));
+
+    function resetAlerts(type) {
+        if(type === 'tp') cardTp.classList.remove('hit-tp');
+        if(type === 'sl') cardSl.classList.remove('hit-sl');
+        if(type === 'any') cardAny.classList.remove('hit-any');
     }
 
-    // --- GIỮ NGUYÊN CODE ÂM THANH CỦA BẠN 100% ---
-    function playAlarmTone(type) {
+    function sendTelegram(text) {
+        const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(text)}`;
+        fetch(url).catch(err => console.error("Tele Error:", err));
+    }
+
+    function checkCustomAlerts(gapVal) {
+        const NOW = Date.now();
+        const DELAY = 5000; 
+
+        const tpVal = parseInt(inpTp.value);
+        if (!isNaN(tpVal) && gapVal === tpVal && (NOW - lastAlertTime.tp > DELAY)) {
+            lastAlertTime.tp = NOW;
+            cardTp.classList.add('hit-tp');
+            playCustomSound('tp');
+            speak("Take Profit hit, " + tpVal); 
+            sendTelegram(`Price hit TP ${tpVal} ✅`);
+            setTimeout(() => cardTp.classList.remove('hit-tp'), 1000);
+        }
+
+        const slVal = parseInt(inpSl.value);
+        if (!isNaN(slVal) && gapVal === slVal && (NOW - lastAlertTime.sl > DELAY)) {
+            lastAlertTime.sl = NOW;
+            cardSl.classList.add('hit-sl');
+            playCustomSound('sl');
+            speak("Stop Loss hit, " + slVal); 
+            sendTelegram(`Price hit SL ${slVal} 🆘`);
+            setTimeout(() => cardSl.classList.remove('hit-sl'), 1000);
+        }
+
+        const anyVal = parseInt(inpAny.value);
+        if (!isNaN(anyVal) && gapVal === anyVal && (NOW - lastAlertTime.any > DELAY)) {
+            lastAlertTime.any = NOW;
+            cardAny.classList.add('hit-any');
+            playCustomSound('any');
+            speak("Alert point hit, " + anyVal);
+            sendTelegram(`Price hit ANY ${anyVal} ☑️`);
+            setTimeout(() => cardAny.classList.remove('hit-any'), 1000);
+        }
+    }
+
+    function playCustomSound(type) {
+        if (!audioStarted) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.connect(gain);
         gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+
+        if (type === 'tp') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc.start(now); osc.stop(now + 0.5);
+        } else if (type === 'sl') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.linearRampToValueAtTime(150, now + 0.3);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.8);
+            osc.start(now); osc.stop(now + 0.8);
+        } else if (type === 'any') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(600, now);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2);
+        }
+    }
+
+    window.initTrading = function() {
+        if (!audioStarted) { audioCtx.resume(); audioStarted = true; }
+        stopAlarm(); requestWakeLock();
+    }
+
+    function playAlarmTone(type) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = type === 'long' ? 'sine' : 'sawtooth';
         osc.frequency.setValueAtTime(type === 'long' ? 880 : 440, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(type === 'long' ? 440 : 220, audioCtx.currentTime + 0.5);
         gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
     }
 
     function speak(text) {
         const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'en-US';
-        msg.rate = 1.1;
+        msg.lang = 'en-US'; 
+        msg.rate = 1.2;     
         window.speechSynthesis.speak(msg);
     }
 
     function startAlarm(type) {
         if (isAlarming) return;
         isAlarming = true;
-        const actionText = type === 'long' ? "Open Long Now" : "Open Short Now";
+        const actionText = type === 'long' ? "Open Long" : "Open Short";
         alarmInterval = setInterval(() => {
             playAlarmTone(type);
-            speak(actionText);
+            speak(actionText); 
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         }, 1500);
         setTimeout(stopAlarm, 10000);
@@ -297,14 +465,12 @@
         try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
     }
 
-    // --- HỒI PHỤC KÝ ỨC (CACHE) ---
     const cachedBTCD = localStorage.getItem('last_btcd_v17_cloud');
     if (cachedBTCD) {
         prices.btcd_cloud = parseFloat(cachedBTCD);
         inputEl.value = prices.btcd_cloud.toFixed(2);
     }
 
-    // --- KẾT NỐI BINANCE (SPOT) ---
     const ws = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker");
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
@@ -314,37 +480,20 @@
         render();
     };
 
-    // --- LẮNG NGHE DỮ LIỆU TỪ FIREBASE (BẢN CẬP NHẬT HEARTBEAT) ---
     onValue(btcdRef, (snapshot) => {
         const data = snapshot.val();
         if (data !== null) {
-            // Kiểm tra: Nếu là Object thì lấy .price, nếu là số thuần thì lấy chính nó
             let price = (typeof data === 'object') ? data.price : parseFloat(data);
-            
-            // Validate để tránh lỗi NaN
             if (isNaN(price)) return;
-
             prices.btcd_cloud = price;
             localStorage.setItem('last_btcd_v17_cloud', price);
-            
-            // Cập nhật nhịp đập liên tục
             lastHeartbeat = Date.now(); 
-            
-            // Xóa trạng thái báo đỏ (dead) ngay khi nhận được gói tin (kể cả khi giá đứng im)
-            if (dotEl.classList.contains('dead')) {
-                dotEl.classList.remove('dead');
-            }
-
-            // Nếu đang ở chế độ CLOUD thì cập nhật vào ô Input
-            if (appState === 0 && inputEl) {
-                inputEl.value = price.toFixed(2);
-            }
-
+            if (dotEl.classList.contains('dead')) dotEl.classList.remove('dead');
+            if (appState === 0 && inputEl) inputEl.value = price.toFixed(2);
             render();
         }
     });
 
-    // WATCHDOG (Kiểm tra kết nối mỗi giây)
     setInterval(() => {
         if (appState === 0 && Date.now() - lastHeartbeat > 5000) {
             if (!dotEl.classList.contains('dead')) dotEl.classList.add('dead');
@@ -362,30 +511,22 @@
 
     function render() {
         if (prices.btc === 0 || prices.eth === 0) return;
-
         update('btc-p', prices.btc.toLocaleString());
         update('eth-p', prices.eth.toLocaleString());
         update('ratio', prices.ratio.toFixed(6));
         
         let calculationBtcd = 0;
         let statusText = "LOADING..";
-        
         if (appState === 1) { 
             const manualVal = parseFloat(inputEl.value);
-            if (!isNaN(manualVal)) {
-                calculationBtcd = manualVal;
-                statusText = "MANUAL";
-            }
+            if (!isNaN(manualVal)) { calculationBtcd = manualVal; statusText = "MANUAL"; }
         } else { 
             if (prices.btcd_cloud > 0) {
                 calculationBtcd = prices.btcd_cloud;
                 const isLive = !dotEl.classList.contains('dead');
                 statusText = (isLive ? "AUTO: " : "OLD: ") + calculationBtcd.toFixed(2) + "%";
-            } else {
-                statusText = "WAITING PC...";
-            }
+            } else { statusText = "WAITING PC..."; }
         }
-
         update('btcd-rt', statusText);
         const mainData = calcGapValue(calculationBtcd, prices.ratio);
         update('fv', isNaN(mainData.fv) ? "0.000000" : mainData.fv.toFixed(6));
@@ -395,8 +536,9 @@
         const scopeBg = document.getElementById('scope-bg');
         const gapVal = isNaN(mainData.gap) ? 0 : mainData.gap;
         
-        bigGapEl.innerText = (gapVal > 0 ? "+" : "") + gapVal;
+        checkCustomAlerts(gapVal);
 
+        bigGapEl.innerText = (gapVal > 0 ? "+" : "") + gapVal;
         let visualPercent = ((gapVal + 30) / 60) * 100;
         visualPercent = Math.max(0, Math.min(100, visualPercent));
         document.getElementById('gap-visual').style.left = visualPercent + "%";
@@ -441,16 +583,13 @@
 
     window.handleLabelClick = function() {
         if (appState === 0) {
-            appState = 1;
-            inputEl.readOnly = false;
+            appState = 1; inputEl.readOnly = false;
             inputEl.classList.add('manual-mode');
             labelEl.innerText = "BTC.D REF (MANUAL)";
             labelEl.style.color = "var(--text-dim)";
             inputEl.focus();
-        } 
-        else {
-            appState = 0;
-            inputEl.readOnly = true;
+        } else {
+            appState = 0; inputEl.readOnly = true;
             inputEl.classList.remove('manual-mode');
             labelEl.innerText = "BTC.D REF (AUTO)";
             labelEl.style.color = "var(--cyan)";
