@@ -60,7 +60,6 @@
             letter-spacing: 1px;
         }
 
-        /* DẤU CHẤM TRẠNG THÁI */
         .live-dot {
             display: inline-block; width: 6px; height: 6px;
             background-color: var(--cyan); border-radius: 50%;
@@ -179,7 +178,7 @@
     <div class="btcd-section">
         <div style="display:flex; align-items:center">
             <span id="connection-dot" class="live-dot dead"></span>
-            <span class="btcd-label" onclick="handleLabelClick()" id="status-label">BTC.D REF (CLOUD)</span>
+            <span class="btcd-label" onclick="handleLabelClick()" id="status-label">BTC.D REF (AUTO)</span>
         </div>
         <input type="text" id="btcd-input" value="0.00" step="0.01" readonly>
     </div>
@@ -212,26 +211,39 @@
     <div id="action" class="action-bar neutral">WAITING SIGNAL...</div>
 </div>
 
-<script>
+<script type="module">
+    // --- KẾT NỐI FIREBASE (THAY THẾ NTFY) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+        databaseURL: "https://sniper-gap-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const btcdRef = ref(db, 'btcd');
+
     const D_REF = 59.52; 
     const P_REF = 0.034610; 
     const SENSITIVITY = 3.3;
-    const TOPIC_ID = 'evantuan_vip_secret_2026'; // Kênh kết nối
 
-    // Object chứa giá, giờ dùng btcd_cloud
+    // Object chứa giá
     let prices = { btc: 0, eth: 0, ratio: 0, btcd_cloud: 0 };
     let isAlarming = false;
     let alarmInterval = null;
     let wakeLock = null;
     let audioStarted = false;
     let appState = 0; // 0: CLOUD, 1: MANUAL
+    let lastHeartbeat = Date.now();
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const inputEl = document.getElementById('btcd-input');
     const labelEl = document.getElementById('status-label');
     const dotEl = document.getElementById('connection-dot');
     
-    function initTrading() {
+    // --- CÁC HÀM XỬ LÝ SỰ KIỆN (BẮT BUỘC DÙNG WINDOW ĐỂ GỌI TỪ HTML) ---
+    window.initTrading = function() {
         if (!audioStarted) {
             audioCtx.resume();
             audioStarted = true;
@@ -240,7 +252,7 @@
         requestWakeLock();
     }
 
-    // --- GIỮ NGUYÊN CODE ÂM THANH CỦA BẠN ---
+    // --- GIỮ NGUYÊN CODE ÂM THANH CỦA BẠN 100% ---
     function playAlarmTone(type) {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -265,7 +277,6 @@
     function startAlarm(type) {
         if (isAlarming) return;
         isAlarming = true;
-        // GIỮ NGUYÊN CÂU LỆNH CỦA BẠN
         const actionText = type === 'long' ? "Open Long Now" : "Open Short Now";
         alarmInterval = setInterval(() => {
             playAlarmTone(type);
@@ -287,7 +298,6 @@
     }
 
     // --- HỒI PHỤC KÝ ỨC (CACHE) ---
-    // Kiểm tra bộ nhớ xem có số cũ không
     const cachedBTCD = localStorage.getItem('last_btcd_v17_cloud');
     if (cachedBTCD) {
         prices.btcd_cloud = parseFloat(cachedBTCD);
@@ -296,75 +306,48 @@
 
     // --- KẾT NỐI BINANCE (SPOT) ---
     const ws = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker");
-    
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
         if (d.s === "BTCUSDT") prices.btc = parseFloat(d.c);
         if (d.s === "ETHUSDT") prices.eth = parseFloat(d.c);
-        
-        if (prices.btc > 0 && prices.eth > 0) {
-            prices.ratio = prices.eth / prices.btc;
-        }
+        if (prices.btc > 0 && prices.eth > 0) prices.ratio = prices.eth / prices.btc;
         render();
     };
 
-    // --- KẾT NỐI CLOUD (THAY THẾ FWS & COINLORE) ---
-    let lastHeartbeat = Date.now();
-    
-    const cloud = new EventSource(`https://ntfy.sh/${TOPIC_ID}/sse`);
-    
-    cloud.onmessage = (e) => {
-    try {
-        const msg = JSON.parse(e.data);
+    // --- LẮNG NGHE DỮ LIỆU TỪ FIREBASE (BẢN CẬP NHẬT HEARTBEAT) ---
+    onValue(btcdRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data !== null) {
+            // Kiểm tra: Nếu là Object thì lấy .price, nếu là số thuần thì lấy chính nó
+            let price = (typeof data === 'object') ? data.price : parseFloat(data);
+            
+            // Validate để tránh lỗi NaN
+            if (isNaN(price)) return;
 
-        // Bỏ qua keepalive của ntfy
-        if (msg.event !== 'message') return;
+            prices.btcd_cloud = price;
+            localStorage.setItem('last_btcd_v17_cloud', price);
+            
+            // Cập nhật nhịp đập liên tục
+            lastHeartbeat = Date.now(); 
+            
+            // Xóa trạng thái báo đỏ (dead) ngay khi nhận được gói tin (kể cả khi giá đứng im)
+            if (dotEl.classList.contains('dead')) {
+                dotEl.classList.remove('dead');
+            }
 
-        let price = null;
-        let mode = 'UNKNOWN';
+            // Nếu đang ở chế độ CLOUD thì cập nhật vào ô Input
+            if (appState === 0 && inputEl) {
+                inputEl.value = price.toFixed(2);
+            }
 
-        // Ưu tiên JSON (V3.4+)
-        try {
-            const payload = JSON.parse(msg.message);
-            price = payload.price;
-            mode = payload.mode || 'IDLE';
-        } catch {
-            // Fallback V18 (string thuần)
-            price = parseFloat(msg.message);
+            render();
         }
-
-        // Validate
-        if (typeof price !== 'number' || isNaN(price)) return;
-
-        prices.btcd_cloud = price;
-
-        // Lưu cache
-        localStorage.setItem('last_btcd_v17_cloud', price);
-
-        // Heartbeat
-        lastHeartbeat = Date.now();
-        if (dotEl.classList.contains('dead')) {
-            dotEl.classList.remove('dead');
-        }
-
-        // Đang Cloud mode → fill input
-        if (appState === 0 && inputEl) {
-            inputEl.value = price.toFixed(2);
-        }
-
-        console.log('[CLOUD]', price, mode);
-        render();
-
-    } catch (err) {
-        console.error('Cloud parse error', err);
-    }
-};
+    });
 
     // WATCHDOG (Kiểm tra kết nối mỗi giây)
     setInterval(() => {
-        if (appState === 0 && Date.now() - lastHeartbeat > 4000) {
+        if (appState === 0 && Date.now() - lastHeartbeat > 5000) {
             if (!dotEl.classList.contains('dead')) dotEl.classList.add('dead');
-            // Cập nhật lại UI để hiện chữ OLD hoặc LOST
             render();
         }
     }, 1000);
@@ -387,18 +370,17 @@
         let calculationBtcd = 0;
         let statusText = "LOADING..";
         
-        if (appState === 1) { // MANUAL MODE
+        if (appState === 1) { 
             const manualVal = parseFloat(inputEl.value);
             if (!isNaN(manualVal)) {
                 calculationBtcd = manualVal;
                 statusText = "MANUAL";
             }
-        } else { // CLOUD MODE
+        } else { 
             if (prices.btcd_cloud > 0) {
                 calculationBtcd = prices.btcd_cloud;
-                // Kiểm tra xem tín hiệu còn sống không
                 const isLive = !dotEl.classList.contains('dead');
-                statusText = (isLive ? "CLOUD: " : "OLD: ") + calculationBtcd.toFixed(2) + "%";
+                statusText = (isLive ? "AUTO: " : "OLD: ") + calculationBtcd.toFixed(2) + "%";
             } else {
                 statusText = "WAITING PC...";
             }
@@ -436,6 +418,7 @@
             actEl.className = "action-bar neutral";
             bigGapEl.style.color = "#fff";
             scopeBg.style.borderColor = "var(--border)";
+            stopAlarm();
         }
     }
 
@@ -448,7 +431,6 @@
         }
     }
 
-    // Tự động chuyển Manual khi nhập
     inputEl.addEventListener('input', function() {
         appState = 1; 
         this.classList.add('manual-mode');
@@ -457,9 +439,8 @@
         render();
     });
 
-    // Bấm vào chữ để chuyển đổi chế độ
-    function handleLabelClick() {
-        if (appState === 0) { // Đang Cloud -> Sang Manual
+    window.handleLabelClick = function() {
+        if (appState === 0) {
             appState = 1;
             inputEl.readOnly = false;
             inputEl.classList.add('manual-mode');
@@ -467,13 +448,12 @@
             labelEl.style.color = "var(--text-dim)";
             inputEl.focus();
         } 
-        else { // Đang Manual -> Sang Cloud
+        else {
             appState = 0;
             inputEl.readOnly = true;
             inputEl.classList.remove('manual-mode');
-            labelEl.innerText = "BTC.D REF (CLOUD)";
+            labelEl.innerText = "BTC.D REF (AUTO)";
             labelEl.style.color = "var(--cyan)";
-            // Cập nhật lại giá từ Cloud ngay
             if(prices.btcd_cloud > 0) inputEl.value = prices.btcd_cloud.toFixed(2);
             render();
         }
