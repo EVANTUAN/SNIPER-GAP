@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RADAGAP - EVANTUAN PRO</title>
+    <title>RADAGAP - EVANTUAN</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         /* --- CORE VARIABLES --- */
@@ -508,9 +508,9 @@
                 <div class="gap-indicator" id="gap-visual"></div>
             </div>
             <div class="gap-thresholds">
-                <span>LONG (-20)</span>
+                <span>LONG (-30)</span>
                 <span>0</span>
-                <span>SHORT (+20)</span>
+                <span>SHORT (+30)</span>
             </div>
         </div>
 
@@ -700,17 +700,19 @@
 
         async function fetchBinanceEMAs() {
             try {
+                // Lấy dữ liệu M15
                 const resM15 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=15m&limit=1000");
                 const dataM15 = await resM15.json();
-                const closesM15 = dataM15.map(c => parseFloat(c[4]));
-                ethbtc_emas.m15_50 = calculateEMA(closesM15.slice(-50), 50);
+                const closesM15 = dataM15.slice(0, -1).map(c => parseFloat(c[4]));
+                ethbtc_emas.m15_50 = calculateEMA(closesM15, 50);
 
+                // Lấy dữ liệu H1
                 const resH1 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=1h&limit=1000");
                 const dataH1 = await resH1.json();
-                const closesH1 = dataH1.map(c => parseFloat(c[4]));
-                ethbtc_emas.h1_50 = calculateEMA(closesH1.slice(-50), 50);
-                ethbtc_emas.h1_100 = calculateEMA(closesH1.slice(-100), 100);
-                ethbtc_emas.h1_200 = calculateEMA(closesH1.slice(-200), 200);
+                const closesH1 = dataH1.slice(0, -1).map(c => parseFloat(c[4]));
+                ethbtc_emas.h1_50 = calculateEMA(closesH1, 50);
+                ethbtc_emas.h1_100 = calculateEMA(closesH1, 100);
+                ethbtc_emas.h1_200 = calculateEMA(closesH1, 200);
 
                 render();
             } catch (err) { console.error("Binance EMA Error:", err); }
@@ -764,25 +766,35 @@
 
             updateText('btc-p', market.btc.toLocaleString());
             updateText('eth-p', market.eth.toLocaleString());
-            updateText('ratio', market.ratio.toFixed(6));
+            updateText('ratio', market.ratio.toFixed(5));
 
             let useBtcd = (appState === 1) ? parseFloat(inputEl.value) : market.btcd_live;
             if (isNaN(useBtcd)) useBtcd = 0;
 
+            // Helper tính EMA Live nhanh
+            const getLive = (base, period) => (market.ratio - base) * (2 / (period + 1)) + base;
+
+            // Tính EMA Live cho từng mốc
+            const liveM15_50 = getLive(ethbtc_emas.m15_50, 50);
+            const liveH1_50 = getLive(ethbtc_emas.h1_50, 50);
+            const liveH1_100 = getLive(ethbtc_emas.h1_100, 100);
+            const liveH1_200 = getLive(ethbtc_emas.h1_200, 200);
+
+            // Tính Gap dựa trên EMA Live đã khớp TradingView
             const resOrig = calcDynamicGap(ORIGIN_D, ORIGIN_P, useBtcd, market.ratio);
+            const resM15 = calcDynamicGap(btcd_emas.m15_50, liveM15_50, useBtcd, market.ratio);
+            const resH1_50 = calcDynamicGap(btcd_emas.h1_50, liveH1_50, useBtcd, market.ratio);
+            const resH1_100 = calcDynamicGap(btcd_emas.h1_100, liveH1_100, useBtcd, market.ratio);
+            const resH1_200 = calcDynamicGap(btcd_emas.h1_200, liveH1_200, useBtcd, market.ratio);
+
+            // Cập nhật giao dịch hàng
             updateRow('row-orig', 'gap-orig', 'fv-orig', resOrig);
-
-            const resM15 = calcDynamicGap(btcd_emas.m15_50, ethbtc_emas.m15_50, useBtcd, market.ratio);
-            const resH1_50 = calcDynamicGap(btcd_emas.h1_50, ethbtc_emas.h1_50, useBtcd, market.ratio);
-            const resH1_100 = calcDynamicGap(btcd_emas.h1_100, ethbtc_emas.h1_100, useBtcd, market.ratio);
-            const resH1_200 = calcDynamicGap(btcd_emas.h1_200, ethbtc_emas.h1_200, useBtcd, market.ratio);
-
             updateRow('row-50', 'gap-50', 'fv-50', resH1_50);
             updateRow('row-100', 'gap-100', 'fv-100', resH1_100);
             updateRow('row-200', 'gap-200', 'fv-200', resH1_200);
 
             const mainGap = resM15.gap;
-            updateText('fv-main', resM15.fv.toFixed(6));
+            updateText('fv-main', resM15.fv.toFixed(5));
 
             const bigGapEl = document.getElementById('market-gap');
             bigGapEl.innerText = (mainGap > 0 ? "+" : "") + mainGap;
@@ -795,11 +807,11 @@
             const actEl = document.getElementById('action');
             const scopeBg = document.getElementById('scope-bg');
 
-            if (mainGap <= -20) {
+            if (mainGap <= -30) {
                 actEl.innerText = "LONG ETH / SHORT BTC"; actEl.className = "action-bar long";
                 bigGapEl.style.color = "var(--up)"; scopeBg.style.borderColor = "var(--up)";
                 startAlarm('long');
-            } else if (mainGap >= 20) {
+            } else if (mainGap >= 30) {
                 actEl.innerText = "SHORT ETH / LONG BTC"; actEl.className = "action-bar short";
                 bigGapEl.style.color = "var(--down)"; scopeBg.style.borderColor = "var(--down)";
                 startAlarm('short');
@@ -819,7 +831,7 @@
             if (res.fv === 0) return;
 
             gapEl.innerText = (res.gap > 0 ? "+" : "") + res.gap;
-            fvEl.innerText = res.fv.toFixed(6);
+            fvEl.innerText = res.fv.toFixed(5);
 
             // --- VISUALS (SÁNG RỰC) ---
             const absGap = Math.abs(res.gap);
@@ -887,6 +899,25 @@
             if (appState === 0) { appState = 1; inputEl.readOnly = false; inputEl.classList.add('manual-mode'); labelEl.innerText = "BTC.D REF (MANUAL)"; labelEl.style.color = "var(--text-dim)"; inputEl.focus(); }
             else { appState = 0; inputEl.readOnly = true; inputEl.classList.remove('manual-mode'); labelEl.innerText = "BTC.D REF (AUTO)"; labelEl.style.color = "var(--cyan)"; if (market.btcd_live > 0) inputEl.value = market.btcd_live.toFixed(2); render(); }
         }
+        // --- LOGIC LƯU TRỮ DỮ LIỆU ---
+const persistFields = ['inp-entry', 'inp-tp', 'inp-any'];
+
+persistFields.forEach(id => {
+    const savedVal = localStorage.getItem(id);
+    const el = document.getElementById(id);
+    if (savedVal !== null) {
+        el.value = savedVal;
+        // Kích hoạt lại logic SL nếu là Entry
+        if (id === 'inp-entry' && savedVal !== "") {
+            const slEl = document.getElementById('inp-sl');
+            if (slEl) slEl.value = parseInt(savedVal) * 2;
+        }
+    }
+
+    el.addEventListener('input', () => {
+        localStorage.setItem(id, el.value);
+    });
+});
     </script>
 </body>
 
