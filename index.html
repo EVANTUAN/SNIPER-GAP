@@ -66,7 +66,32 @@
             justify-content: space-between;
             align-items: center;
             padding-bottom: 8px;
-            border-bottom: 1px solid var(--border);
+            position: relative;
+            /* Để chứa thanh velocity */
+        }
+
+        /* THANH CHỨA TỐC ĐỘ */
+        .velocity-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(107, 139, 164, 0.1);
+            /* Màu nền mờ */
+            overflow: hidden;
+        }
+
+        #velocity-bar {
+            position: absolute;
+            height: 100%;
+            width: 0%;
+            /* Mặc định bằng 0 */
+            left: 50%;
+            /* Xuất phát từ giữa */
+            background: var(--cyan);
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px var(--cyan);
         }
 
         .brand {
@@ -139,10 +164,10 @@
 
         #btcd-input {
             width: 120px;
+            height: 45px;
             background: #000;
             border: 1px solid #1a2533;
             border-radius: 8px;
-            padding: 8px 0 8px 5px;
             color: var(--cyan);
             font-size: 1.8rem;
             font-family: 'Rajdhani', sans-serif;
@@ -150,7 +175,22 @@
             text-align: center;
             outline: none;
             transition: border-color 0.3s;
+
+            /* CĂN CHỈNH QUAN TRỌNG */
+            display: block;
+            /* Ép về block để line-height có tác dụng */
+            line-height: 43px;
+            /* Phải bằng đúng height của ô để căn giữa dọc */
+            text-indent: 1.5px;
+            padding: 0 !important;
+            /* Xóa bỏ hoàn toàn padding mặc định của trình duyệt */
+            appearance: none;
+            /* Xóa bỏ mọi định dạng mặc định của hệ điều hành */
+            -webkit-appearance: none;
+            letter-spacing: -1px;
+            padding-top: 1px !important;
         }
+
 
         #btcd-input:focus {
             border-color: var(--cyan);
@@ -163,6 +203,7 @@
         }
 
         /* SCOPE CONTAINER */
+        /* --- TÌM VÀ THAY THẾ ĐOẠN NÀY --- */
         .scope-container {
             flex: 1;
             display: flex;
@@ -176,7 +217,38 @@
             margin: 5px 0;
             padding: 15px 0;
             min-height: 180px;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            transition: all 0.3s ease;
+            /* Thêm để loé sáng mượt */
+            overflow: hidden;
+            /* Quan trọng để hào quang không tràn */
+        }
+
+        /* THÊM VÀO NGAY DƯỚI .scope-container */
+        .scope-container::before,
+        .scope-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 60px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Hào quang Trái (Mua - Up) */
+        .scope-container.buy-flow::before {
+            left: 0;
+            background: linear-gradient(to right, rgba(0, 255, 170, 0.2), transparent);
+            opacity: 1;
+        }
+
+        /* Hào quang Phải (Bán - Down) */
+        .scope-container.sell-flow::after {
+            right: 0;
+            background: linear-gradient(to left, rgba(255, 77, 77, 0.2), transparent);
+            opacity: 1;
         }
 
         .scope-corner {
@@ -255,6 +327,24 @@
             color: var(--text-dim);
             font-weight: 600;
             z-index: 10;
+        }
+
+        /* Thêm đoạn này để ép 3 phần tử có độ rộng bằng nhau */
+        .gap-thresholds span {
+            flex: 1;
+        }
+
+        .gap-thresholds span:nth-child(1) {
+            text-align: left;
+        }
+
+        .gap-thresholds span:nth-child(2) {
+            text-align: center;
+        }
+
+        /* Số 0 sẽ ở chính giữa trục */
+        .gap-thresholds span:nth-child(3) {
+            text-align: right;
         }
 
         /* --- ENERGY BAR STACK --- */
@@ -488,7 +578,11 @@
         <div class="header">
             <div class="brand">RADAGAP</div>
             <div class="live-tag" id="sound-btn" onclick="toggleSound(event)">®EVANTUAN</div>
+            <div class="velocity-container">
+                <div id="velocity-bar"></div>
+            </div>
         </div>
+
 
         <div class="btcd-section">
             <div style="display:flex; align-items:center">
@@ -550,8 +644,9 @@
             <div class="card"><span class="label">ETH/BTC</span>
                 <div id="ratio" class="val" style="color:var(--cyan)">0.00</div>
             </div>
-            <div class="card"><span class="label">FAIR VAL</span>
-                <div id="fv-main" class="val">0.00</div>
+
+            <div class="card"><span class="label">RSI</span>
+                <div id="rsi-val" class="val" style="color:var(--text-dim)">--</div>
             </div>
 
             <div class="card"><span class="label">ENTRY</span><input type="number" id="inp-entry" class="trade-input">
@@ -589,6 +684,9 @@
         let market = { btc: 0, eth: 0, ratio: 0, btcd_live: 0 };
         let btcd_emas = { m15_50: 0, h1_50: 0, h1_100: 0, h1_200: 0 };
         let ethbtc_emas = { m15_50: 0, h1_50: 0, h1_100: 0, h1_200: 0 };
+        let refRatio = 0;           // Tỷ giá tham chiếu để so sánh
+        let lastMomentumCheck = 0;  // Mốc thời gian kiểm tra gần nhất
+        let currentDiff = 0;        // Độ lệch % được tính toán
 
         // --- LOGIC TẮT TIẾNG (MỚI) ---
         let isMuted = false;
@@ -649,23 +747,44 @@
             fetch(url).catch(err => console.error("Tele Error:", err));
         }
 
-        function checkCustomAlerts(gapVal) {
+        // --- CẬP NHẬT LOGIC CẢNH BÁO ---
+        // TP và SL: Theo Origin (currentOrigGap)
+        // ANY: Theo M15 (currentMainGap)
+        function checkCustomAlerts(currentMainGap, currentOrigGap) {
             const NOW = Date.now();
             const DELAY = 5000;
+
+            // 1. Cảnh báo TP: Theo TRỤC GỐC
             const tpVal = parseInt(inpTp.value);
-            if (!isNaN(tpVal) && gapVal === tpVal && (NOW - lastAlertTime.tp > DELAY)) {
-                lastAlertTime.tp = NOW; cardTp.classList.add('hit-tp'); playCustomSound('tp');
-                speak("Take Profit"); sendTelegram(`TP HIT: ${tpVal} ✅`); setTimeout(() => cardTp.classList.remove('hit-tp'), 1000);
+            if (!isNaN(tpVal) && currentOrigGap === tpVal && (NOW - lastAlertTime.tp > DELAY)) {
+                lastAlertTime.tp = NOW;
+                cardTp.classList.add('hit-tp');
+                playCustomSound('tp');
+                speak("Take Profit");
+                sendTelegram(`TP HIT (ORIGIN): ${tpVal} ✅`);
+                setTimeout(() => cardTp.classList.remove('hit-tp'), 1000);
             }
+
+            // 2. Cảnh báo SL: Theo TRỤC GỐC
             const slVal = parseInt(inpSl.value);
-            if (!isNaN(slVal) && gapVal === slVal && (NOW - lastAlertTime.sl > DELAY)) {
-                lastAlertTime.sl = NOW; cardSl.classList.add('hit-sl'); playCustomSound('sl');
-                speak("Stop Loss"); sendTelegram(`SL HIT: ${slVal} 🆘`); setTimeout(() => cardSl.classList.remove('hit-sl'), 1000);
+            if (!isNaN(slVal) && currentOrigGap === slVal && (NOW - lastAlertTime.sl > DELAY)) {
+                lastAlertTime.sl = NOW;
+                cardSl.classList.add('hit-sl');
+                playCustomSound('sl');
+                speak("Stop Loss");
+                sendTelegram(`SL HIT (ORIGIN): ${slVal} 🆘`);
+                setTimeout(() => cardSl.classList.remove('hit-sl'), 1000);
             }
+
+            // 3. Cảnh báo ANY: Vẫn giữ theo M15
             const anyVal = parseInt(inpAny.value);
-            if (!isNaN(anyVal) && gapVal === anyVal && (NOW - lastAlertTime.any > DELAY)) {
-                lastAlertTime.any = NOW; cardAny.classList.add('hit-any'); playCustomSound('any');
-                speak("Alert"); sendTelegram(`ALERT: ${anyVal} ☑️`); setTimeout(() => cardAny.classList.remove('hit-any'), 1000);
+            if (!isNaN(anyVal) && currentMainGap === anyVal && (NOW - lastAlertTime.any > DELAY)) {
+                lastAlertTime.any = NOW;
+                cardAny.classList.add('hit-any');
+                playCustomSound('any');
+                speak("Alert");
+                sendTelegram(`ALERT (M15): ${anyVal} ☑️`);
+                setTimeout(() => cardAny.classList.remove('hit-any'), 1000);
             }
         }
 
@@ -698,13 +817,43 @@
             return ema;
         }
 
+        // STEP 2: THÊM HÀM TÍNH RSI
+        function calculateRSI(prices, period = 14) {
+            if (prices.length <= period) return 50;
+            let gains = 0, losses = 0;
+            // Tính tổng Gain/Loss trong 14 kỳ gần nhất
+            for (let i = 1; i <= period; i++) {
+                let diff = prices[prices.length - i] - prices[prices.length - i - 1];
+                if (diff >= 0) gains += diff;
+                else losses -= diff;
+            }
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+            if (avgLoss === 0) return 100;
+            let rs = avgGain / avgLoss;
+            return 100 - (100 / (1 + rs));
+        }
+
+        // STEP 3: CẬP NHẬT FETCH BINANCE EMA & RSI
         async function fetchBinanceEMAs() {
             try {
-                // Lấy dữ liệu M15
+                // Lấy dữ liệu M15 (giữ limit 1000 cho an toàn EMA, nhưng dùng cho RSI luôn)
                 const resM15 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=15m&limit=1000");
                 const dataM15 = await resM15.json();
                 const closesM15 = dataM15.slice(0, -1).map(c => parseFloat(c[4]));
+
                 ethbtc_emas.m15_50 = calculateEMA(closesM15, 50);
+
+                // --- LOGIC RSI MỚI ---
+                const rsiVal = calculateRSI(closesM15, 14);
+                const rsiEl = document.getElementById('rsi-val');
+                if (rsiEl) {
+                    rsiEl.innerText = rsiVal.toFixed(1);
+                    // Logic màu sắc: An toàn là số 1
+                    if (rsiVal <= 30) rsiEl.style.color = "var(--up)";   // Quá bán - Ưu tiên Long
+                    else if (rsiVal >= 70) rsiEl.style.color = "var(--down)"; // Quá mua - Ưu tiên Short
+                    else rsiEl.style.color = "var(--text-dim)";          // Vùng lưỡng lự
+                }
 
                 // Lấy dữ liệu H1
                 const resH1 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=1h&limit=1000");
@@ -715,7 +864,7 @@
                 ethbtc_emas.h1_200 = calculateEMA(closesH1, 200);
 
                 render();
-            } catch (err) { console.error("Binance EMA Error:", err); }
+            } catch (err) { console.error("Binance RSI/EMA Error:", err); }
         }
         fetchBinanceEMAs(); setInterval(fetchBinanceEMAs, 60000);
 
@@ -794,7 +943,7 @@
             updateRow('row-200', 'gap-200', 'fv-200', resH1_200);
 
             const mainGap = resM15.gap;
-            updateText('fv-main', resM15.fv.toFixed(5));
+            // updateText('fv-main', resM15.fv.toFixed(5)); // Đã ẩn Element này, bỏ qua update
 
             const bigGapEl = document.getElementById('market-gap');
             bigGapEl.innerText = (mainGap > 0 ? "+" : "") + mainGap;
@@ -803,7 +952,9 @@
             visualPercent = Math.max(0, Math.min(100, visualPercent));
             document.getElementById('gap-visual').style.left = visualPercent + "%";
 
-            checkCustomAlerts(mainGap);
+            // --- TRUYỀN CẢ HAI LOẠI GAP VÀO HÀM CẢNH BÁO ---
+            checkCustomAlerts(mainGap, resOrig.gap);
+
             const actEl = document.getElementById('action');
             const scopeBg = document.getElementById('scope-bg');
 
@@ -820,8 +971,43 @@
                 bigGapEl.style.color = "#fff"; scopeBg.style.borderColor = "var(--border)";
                 stopAlarm();
             }
-        }
+            const now = Date.now();
+            // Khởi tạo điểm neo nếu chưa có
+            if (refRatio === 0) refRatio = market.ratio;
 
+            // Cứ mỗi 500ms (0.5 giây) mới cập nhật lực đẩy một lần để lọc nhiễu
+            if (now - lastMomentumCheck > 500) {
+                currentDiff = (market.ratio - refRatio) / refRatio * 100;
+                refRatio = market.ratio;
+                lastMomentumCheck = now;
+            }
+
+            // Cấu hình hiển thị
+            let vBar = document.getElementById('velocity-bar');
+            let scopeEl = document.getElementById('scope-bg');
+            // Tăng độ nhạy hiển thị (hệ số 2000 giúp nhìn rõ biến động nhỏ)
+            let vPower = Math.min(Math.abs(currentDiff) * 2000, 50);
+
+            // Reset trạng thái lóe sáng
+            scopeEl.classList.remove('buy-flow', 'sell-flow');
+
+            if (currentDiff > 0.00005) { // ETH đang nén lực Mua (Long Thrust)
+                vBar.style.left = "50%";
+                vBar.style.width = vPower + "%";
+                vBar.style.backgroundColor = "var(--cyan)";
+                scopeEl.classList.add('buy-flow');
+            }
+            else if (currentDiff < -0.00005) { // ETH đang nén lực Bán (Short Thrust)
+                vBar.style.left = (50 - vPower) + "%";
+                vBar.style.width = vPower + "%";
+                vBar.style.backgroundColor = "var(--down)";
+                scopeEl.classList.add('sell-flow');
+            }
+            else {
+                vBar.style.width = "0%"; // Dòng tiền đứng yên
+            }
+
+        }
         function updateRow(rowId, gapId, fvId, res) {
             const row = document.getElementById(rowId);
             const gapEl = document.getElementById(gapId);
@@ -900,24 +1086,24 @@
             else { appState = 0; inputEl.readOnly = true; inputEl.classList.remove('manual-mode'); labelEl.innerText = "BTC.D REF (AUTO)"; labelEl.style.color = "var(--cyan)"; if (market.btcd_live > 0) inputEl.value = market.btcd_live.toFixed(2); render(); }
         }
         // --- LOGIC LƯU TRỮ DỮ LIỆU ---
-const persistFields = ['inp-entry', 'inp-tp', 'inp-any'];
+        const persistFields = ['inp-entry', 'inp-tp', 'inp-any'];
 
-persistFields.forEach(id => {
-    const savedVal = localStorage.getItem(id);
-    const el = document.getElementById(id);
-    if (savedVal !== null) {
-        el.value = savedVal;
-        // Kích hoạt lại logic SL nếu là Entry
-        if (id === 'inp-entry' && savedVal !== "") {
-            const slEl = document.getElementById('inp-sl');
-            if (slEl) slEl.value = parseInt(savedVal) * 2;
-        }
-    }
+        persistFields.forEach(id => {
+            const savedVal = localStorage.getItem(id);
+            const el = document.getElementById(id);
+            if (savedVal !== null) {
+                el.value = savedVal;
+                // Kích hoạt lại logic SL nếu là Entry
+                if (id === 'inp-entry' && savedVal !== "") {
+                    const slEl = document.getElementById('inp-sl');
+                    if (slEl) slEl.value = parseInt(savedVal) * 2;
+                }
+            }
 
-    el.addEventListener('input', () => {
-        localStorage.setItem(id, el.value);
-    });
-});
+            el.addEventListener('input', () => {
+                localStorage.setItem(id, el.value);
+            });
+        });
     </script>
 </body>
 
