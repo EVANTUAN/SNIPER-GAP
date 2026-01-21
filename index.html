@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RADAGAP - EVANTUAN</title>
+    <title>RADAGAP - EVANTUAN (HYBRID)</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         /* --- CORE VARIABLES --- */
@@ -268,7 +268,9 @@
         let market = { btc: 0, eth: 0, ratio: 0, btcd_live: 0 };
         let btcd_emas = { m15_50: 0, h1_50: 0, h1_100: 0, h1_200: 0 };
         let ethbtc_emas = { m15_50: 0, h1_50: 0, h1_100: 0, h1_200: 0 };
-        let refRatio = 0;
+        
+        // --- HYBRID VARIABLES ---
+        let refVisualRatio = 0; // Tỷ giá tham chiếu cho Visual
         let lastMomentumCheck = 0;
         let currentDiff = 0;
 
@@ -386,19 +388,15 @@
             return ema;
         }
 
-        // --- RSI FUNCTIONS (CHUẨN TRADINGVIEW - WILDER SMOOTHING) ---
+        // --- RSI FUNCTIONS ---
         function calculateBaseRSI(prices) {
             if (prices.length <= RSI_PERIOD) return;
             let avgGain = 0; let avgLoss = 0;
-
-            // SMA 14 kỳ đầu
             for (let i = 1; i <= RSI_PERIOD; i++) {
                 let change = prices[i] - prices[i - 1];
                 if (change >= 0) avgGain += change; else avgLoss -= change;
             }
             avgGain /= RSI_PERIOD; avgLoss /= RSI_PERIOD;
-
-            // Wilder's Smoothing cho phần còn lại
             for (let i = RSI_PERIOD + 1; i < prices.length; i++) {
                 let change = prices[i] - prices[i - 1];
                 let currentGain = change > 0 ? change : 0;
@@ -406,7 +404,6 @@
                 avgGain = ((avgGain * 13) + currentGain) / 14;
                 avgLoss = ((avgLoss * 13) + currentLoss) / 14;
             }
-
             rsiState.avgGain = avgGain;
             rsiState.avgLoss = avgLoss;
             rsiState.lastClose = prices[prices.length - 1];
@@ -415,15 +412,11 @@
 
         function calculateLiveRSI(currentPrice) {
             if (!rsiState.ready) return 50;
-            // Tính RSI với giá Live so với giá đóng cửa nến trước
             let change = currentPrice - rsiState.lastClose;
             let currentGain = change > 0 ? change : 0;
             let currentLoss = change < 0 ? -change : 0;
-
-            // Ốp công thức Wilder tạm thời (không lưu trạng thái)
             let liveAvgGain = ((rsiState.avgGain * 13) + currentGain) / 14;
             let liveAvgLoss = ((rsiState.avgLoss * 13) + currentLoss) / 14;
-
             if (liveAvgLoss === 0) return 100;
             let rs = liveAvgGain / liveAvgLoss;
             return 100 - (100 / (1 + rs));
@@ -431,16 +424,13 @@
 
         async function fetchBinanceEMAs() {
             try {
-                // Fetch M15
                 const resM15 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=15m&limit=1000");
                 const dataM15 = await resM15.json();
                 globalClosesM15 = dataM15.map(c => parseFloat(c[4]));
 
-                // TÍNH RSI BASE TỪ LỊCH SỬ (Cắt nến cuối đang chạy)
                 const closedCandles = globalClosesM15.slice(0, -1);
                 calculateBaseRSI(closedCandles);
 
-                // Fetch H1
                 const resH1 = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHBTC&interval=1h&limit=1000");
                 const dataH1 = await resH1.json();
                 globalClosesH1 = dataH1.map(c => parseFloat(c[4]));
@@ -468,7 +458,6 @@
             ethbtc_emas.h1_100 = calculateEMA(currentH1, 100);
             ethbtc_emas.h1_200 = calculateEMA(currentH1, 200);
 
-            // TÍNH RSI LIVE
             const rsiVal = calculateLiveRSI(market.ratio);
             const rsiEl = document.getElementById('rsi-val');
             if (rsiEl) {
@@ -495,18 +484,16 @@
             }
         });
 
-        // --- WEBSOCKET CHUẨN: LẤY CẢ 3 STREAM ---
-        // 1. btcusdt & ethusdt: Để hiển thị giá tham khảo
-        // 2. ethbtc: Để tính Ratio và RSI chính xác từng tick
+        // --- WEBSOCKET FIXED: KÍCH HOẠT RENDER TRÊN MỌI TICK ---
         const ws = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker/ethbtc@ticker");
         ws.onmessage = (e) => {
             const d = JSON.parse(e.data);
             
-            // Cập nhật hiển thị giá lẻ
-            if (d.s === "BTCUSDT") market.btc = parseFloat(d.c);
-            if (d.s === "ETHUSDT") market.eth = parseFloat(d.c);
+            // 1. Cập nhật giá lẻ (để tính toán Visual Momentum)
+            if (d.s === "BTCUSDT") { market.btc = parseFloat(d.c); render(); } 
+            if (d.s === "ETHUSDT") { market.eth = parseFloat(d.c); render(); }
 
-            // QUAN TRỌNG: Lấy ratio từ luồng trực tiếp ETHBTC
+            // 2. Cập nhật giá Ratio chuẩn (để tính toán EMA/GAP)
             if (d.s === "ETHBTC") {
                 market.ratio = parseFloat(d.c);
                 updateRealtimeCalc();
@@ -523,7 +510,8 @@
         }
 
         function render() {
-            if (!market.ratio) return;
+            // Chỉ render khi có đủ dữ liệu cơ bản
+            if (!market.ratio || market.btc === 0 || market.eth === 0) return;
 
             updateText('btc-p', market.btc.toLocaleString());
             updateText('eth-p', market.eth.toLocaleString());
@@ -574,12 +562,19 @@
                 bigGapEl.style.color = "#fff"; scopeBg.style.borderColor = "var(--border)";
                 stopAlarm();
             }
+
+            // --- VISUAL MOMENTUM LOGIC (HYBRID FIX) ---
+            // Sử dụng tỷ giá tổng hợp (Synthetic) để tạo hiệu ứng hình ảnh nhạy hơn
+            // Ratio thật (market.ratio) quá lì, không tạo được visual flow
             const now = Date.now();
-            if (refRatio === 0) refRatio = market.ratio;
+            const visualRatio = market.eth / market.btc; // Tính tỉ giá "ảo" để hiển thị xung lực
+
+            if (refVisualRatio === 0) refVisualRatio = visualRatio;
 
             if (now - lastMomentumCheck > 500) {
-                currentDiff = (market.ratio - refRatio) / refRatio * 100;
-                refRatio = market.ratio;
+                // So sánh visualRatio thay vì market.ratio
+                currentDiff = (visualRatio - refVisualRatio) / refVisualRatio * 100;
+                refVisualRatio = visualRatio;
                 lastMomentumCheck = now;
             }
 
@@ -599,6 +594,7 @@
             }
             else { vBar.style.width = "0%"; }
         }
+        
         function updateRow(rowId, gapId, fvId, res) {
             const row = document.getElementById(rowId);
             const gapEl = document.getElementById(gapId);
@@ -670,4 +666,5 @@
         });
     </script>
 </body>
+
 </html>
