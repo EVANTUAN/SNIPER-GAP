@@ -314,8 +314,9 @@
         let lastAlertTime = { tp: 0, sl: 0, any: 0, rsi: 0 };
         let wakeLock = null;
 
-        // Lưu trạng thái lúc gõ số để biết hướng (Direction)
-        let lastBaseValues = { tp: 0, sl: 0, any: 0, rsi: 50 };
+        // --- FIX INITIALIZATION TO NULL ---
+        // Quan trọng: Khởi tạo là NULL để biết chưa có dữ liệu
+        let lastBaseValues = { tp: null, sl: null, any: null, rsi: null };
 
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const inputEl = document.getElementById('btcd-input');
@@ -330,14 +331,64 @@
         const cardSl = document.getElementById('card-sl');
         const cardAny = document.getElementById('card-any');
     
-        // Ghi nhận giá trị gốc khi người dùng bắt đầu nhập số để xác định hướng Long/Short
-        inpRsi.addEventListener('input', () => { resetAlerts('rsi'); lastBaseValues.rsi = parseFloat(document.getElementById('rsi-val')?.innerText || 50); });
-        inpTp.addEventListener('input', () => { resetAlerts('tp'); lastBaseValues.tp = currentOrigGapRef; });
-        inpSl.addEventListener('input', () => { resetAlerts('sl'); lastBaseValues.sl = currentOrigGapRef; });
-        inpAny.addEventListener('input', () => { resetAlerts('any'); lastBaseValues.any = currentMainGapRef; });
+        // Gắn cho RSI
+        inpRsi.addEventListener('focus', () => captureBase('rsi'));
+        inpRsi.addEventListener('input', () => captureBase('rsi'));
+        
+        // Gắn cho Take Profit (TP)
+        inpTp.addEventListener('focus', () => captureBase('tp'));
+        inpTp.addEventListener('input', () => captureBase('tp'));
+        
+        // Gắn cho Stop Loss (SL)
+        inpSl.addEventListener('focus', () => captureBase('sl'));
+        inpSl.addEventListener('input', () => captureBase('sl'));
+        
+        // Gắn cho ANY (M15 Gap)
+        inpAny.addEventListener('focus', () => captureBase('any'));
+        inpAny.addEventListener('input', () => captureBase('any'));
 
         let currentOrigGapRef = 0;
         let currentMainGapRef = 0;
+
+                function captureBase(type) {
+                resetAlerts(type); 
+                
+                // Lấy giá trị tham chiếu từ biến toàn cục
+                let safeOrigGap = currentOrigGapRef;
+                let safeMainGap = currentMainGapRef;
+    
+                // Nếu biến toàn cục chưa có dữ liệu (bằng 0), thử lấy từ giao diện
+                if (safeOrigGap === 0) {
+                    let uiGap = document.getElementById('gap-orig').innerText;
+                    // FIX: Nếu uiGap là "Wait..." thì parseFloat trả về NaN. 
+                    // Code cũ dùng || 0 sẽ gây lỗi logic hướng lệnh.
+                    // Code mới: Nếu NaN thì giữ nguyên NaN để không set giá trị sai.
+                    safeOrigGap = parseFloat(uiGap); 
+                }
+                
+                if (safeMainGap === 0) {
+                    let uiMain = document.getElementById('market-gap').innerText;
+                    safeMainGap = parseFloat(uiMain);
+                }
+    
+                // CHỈ LƯU NẾU DỮ LIỆU HỢP LỆ (Không phải NaN và khác 0 nếu cần thiết)
+                // Việc check !isNaN cực kỳ quan trọng để tránh lỗi nhận diện sai hướng Long/Short
+                
+                if (type === 'rsi') {
+                    let rsiVal = parseFloat(document.getElementById('rsi-val')?.innerText);
+                    if (!isNaN(rsiVal)) lastBaseValues.rsi = rsiVal;
+                }
+                if (type === 'tp') {
+                    if (!isNaN(safeOrigGap)) lastBaseValues.tp = safeOrigGap;
+                }
+                if (type === 'sl') {
+                    if (!isNaN(safeOrigGap)) lastBaseValues.sl = safeOrigGap;
+                }
+                if (type === 'any') {
+                    if (!isNaN(safeMainGap)) lastBaseValues.any = safeMainGap; 
+                }
+            }
+
 
         function resetAlerts(type) {
             if (type === 'rsi') cardRsi.classList.remove('hit-rsi');
@@ -346,23 +397,22 @@
             if (type === 'any') cardAny.classList.remove('hit-any');
         }
 
-        // TỐI ƯU GỬI TỨC THÌ: Không chờ phản hồi, bắn trực tiếp
         function sendTelegramInstant(text) {
             const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(text)}`;
             fetch(url, { mode: 'no-cors' }).catch(() => {}); 
         }
 
+        // --- CHECK ALERTS WITH NULL GUARD ---
         function checkCustomAlerts(currentMainGap, currentOrigGap) {
             currentOrigGapRef = currentOrigGap;
             currentMainGapRef = currentMainGap;
             const NOW = Date.now(); 
-            const DELAY = 4000; // Chặn spam 8 giây
+            const DELAY = 4000; 
 
-            // 1. RSI ALERT LOGIC (TỨC THÌ & TẠT QUA)
+            // 1. RSI ALERT (Guard: lastBaseValues.rsi !== null)
             const rsiTarget = parseFloat(inpRsi.value);
             const rsiCurrent = parseFloat(document.getElementById('rsi-val')?.innerText || 0);
-            if (!isNaN(rsiTarget) && rsiTarget !== 0 && (NOW - lastAlertTime.rsi > DELAY)) {
-                // Hướng: Nếu mục tiêu > giá lúc cài (Long RSI) -> check >=. Ngược lại check <=
+            if (lastBaseValues.rsi !== null && !isNaN(rsiTarget) && rsiTarget !== 0 && (NOW - lastAlertTime.rsi > DELAY)) {
                 const isHitRsi = rsiTarget >= lastBaseValues.rsi ? rsiCurrent >= rsiTarget : rsiCurrent <= rsiTarget;
                 if (isHitRsi) {
                     lastAlertTime.rsi = NOW;
@@ -374,9 +424,9 @@
                 }
             }
 
-            // 2. TP ALERT LOGIC (GIÁ >= HOẶC <= TÙY HƯỚNG - TẠT QUA BÁO NGAY)
+            // 2. TP ALERT (Guard: lastBaseValues.tp !== null)
             const tpVal = parseFloat(inpTp.value);
-            if (!isNaN(tpVal) && (NOW - lastAlertTime.tp > DELAY)) {
+            if (lastBaseValues.tp !== null && !isNaN(tpVal) && (NOW - lastAlertTime.tp > DELAY)) {
                 const isHitTp = tpVal >= lastBaseValues.tp ? currentOrigGap >= tpVal : currentOrigGap <= tpVal;
                 if (isHitTp) {
                     lastAlertTime.tp = NOW;
@@ -388,9 +438,9 @@
                 }
             }
         
-            // 3. SL ALERT LOGIC
+            // 3. SL ALERT (Guard: lastBaseValues.sl !== null)
             const slVal = parseFloat(inpSl.value);
-            if (!isNaN(slVal) && (NOW - lastAlertTime.sl > DELAY)) {
+            if (lastBaseValues.sl !== null && !isNaN(slVal) && (NOW - lastAlertTime.sl > DELAY)) {
                 const isHitSl = slVal >= lastBaseValues.sl ? currentOrigGap >= slVal : currentOrigGap <= slVal;
                 if (isHitSl) {
                     lastAlertTime.sl = NOW;
@@ -402,9 +452,9 @@
                 }
             }
         
-            // 4. ANY ALERT LOGIC (M15 GAP)
+            // 4. ANY ALERT (Guard: lastBaseValues.any !== null)
             const anyVal = parseFloat(inpAny.value);
-            if (!isNaN(anyVal) && (NOW - lastAlertTime.any > DELAY)) {
+            if (lastBaseValues.any !== null && !isNaN(anyVal) && (NOW - lastAlertTime.any > DELAY)) {
                 const isHitAny = anyVal >= lastBaseValues.any ? currentMainGap >= anyVal : currentMainGap <= anyVal;
                 if (isHitAny) {
                     lastAlertTime.any = NOW;
@@ -716,6 +766,15 @@
             if (savedVal !== null) el.value = savedVal; 
             el.addEventListener('input', () => { localStorage.setItem(id, el.value); });
         });
+
+        // --- AUTO RESTORE LOGIC ---
+        setTimeout(() => {
+            if (inpTp.value) captureBase('tp');
+            if (inpSl.value) captureBase('sl');
+            if (inpAny.value) captureBase('any');
+            if (inpRsi.value) captureBase('rsi');
+            console.log("Auto-restored trading logic!");
+        }, 3000);
 
     </script>
 </body>
