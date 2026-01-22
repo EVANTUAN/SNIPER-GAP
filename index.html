@@ -101,12 +101,21 @@
             transition: all 0.3s ease; overflow: hidden;
         }
         .scope-container::before, .scope-container::after {
-            content: ''; position: absolute; top: 0; bottom: 0; width: 60px;
-            opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 1;
+            content: ''; position: absolute; top: 0; bottom: 0; width: 80px;
+            opacity: 0; transition: opacity 0.4s ease; pointer-events: none; z-index: 1;
         }
-        .scope-container.buy-flow::before { left: 0; background: linear-gradient(to right, rgba(0, 255, 170, 0.2), transparent); opacity: 1; }
-        .scope-container.sell-flow::after { right: 0; background: linear-gradient(to left, rgba(255, 77, 77, 0.2), transparent); opacity: 1; }
-
+           /* Tìm và thay thế chính xác 2 dòng này */
+        .scope-container.buy-flow::before { 
+            left: 0; 
+            background: linear-gradient(to right, rgba(0, 255, 170, 0.15), transparent); /* V34 dùng 0.15 */
+            opacity: 1; 
+        }
+        
+        .scope-container.sell-flow::after { 
+            right: 0; 
+            background: linear-gradient(to left, rgba(255, 77, 77, 0.15), transparent); /* V34 dùng 0.15 */
+            opacity: 1; 
+        }
         .scope-corner { position: absolute; width: 15px; height: 15px; border-color: var(--text-dim); border-style: solid; opacity: 0.5; }
         .tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
         .tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
@@ -181,6 +190,7 @@
         .short { background: rgba(239, 68, 68, 0.2); color: var(--down); border: 1px solid var(--down); box-shadow: var(--neon-red); }
         .pulse { animation: flash 0.3s ease-out; }
         @keyframes flash { 0% { filter: brightness(2); } 100% { filter: brightness(1); } }
+        .hit-rsi { border-color: #bc13fe !important; box-shadow: 0 0 10px #bc13fe inset !important; }
         .hit-tp { border-color: var(--tp-color) !important; box-shadow: 0 0 10px var(--tp-color) inset !important; }
         .hit-sl { border-color: var(--sl-color) !important; box-shadow: 0 0 10px var(--sl-color) inset !important; }
         .hit-any { border-color: var(--any-color) !important; box-shadow: 0 0 10px var(--any-color) inset !important; }
@@ -237,9 +247,9 @@
             <div class="card"><span class="label">ETH/BTC</span><div id="ratio" class="val" style="color:var(--cyan)">0.00</div></div>
             <div class="card"><span class="label">RSI</span><div id="rsi-val" class="val" style="color:var(--text-dim)">--</div></div>
 
-            <div class="card"><span class="label">ENTRY</span><input type="number" id="inp-entry" class="trade-input"></div>
+            <div class="card" id="card-rsi"><span class="label">RSI-A</span><input type="number" id="inp-rsi" class="trade-input"></div>
             <div class="card" id="card-tp"><span class="label">TP</span><input type="number" id="inp-tp" class="trade-input"></div>
-            <div class="card" id="card-sl"><span class="label">SL</span><input type="number" id="inp-sl" class="trade-input" readonly></div>
+            <div class="card" id="card-sl"><span class="label">SL</span><input type="number" id="inp-sl" class="trade-input"></div>
             <div class="card" id="card-any"><span class="label">ANY</span><input type="number" id="inp-any" class="trade-input"></div>
         </div>
 
@@ -309,24 +319,22 @@
         const inputEl = document.getElementById('btcd-input');
         const labelEl = document.getElementById('status-label');
         const dotEl = document.getElementById('connection-dot');
-        const inpEntry = document.getElementById('inp-entry');
+        const inpRsi = document.getElementById('inp-rsi'); // Đã đổi tên khớp với HTML
         const inpTp = document.getElementById('inp-tp');
         const inpSl = document.getElementById('inp-sl');
         const inpAny = document.getElementById('inp-any');
+        const cardRsi = document.getElementById('card-rsi'); // Thêm biến này để điều khiển đèn tím
         const cardTp = document.getElementById('card-tp');
         const cardSl = document.getElementById('card-sl');
         const cardAny = document.getElementById('card-any');
-
-        inpEntry.addEventListener('input', () => {
-            const val = parseInt(inpEntry.value);
-            if (!isNaN(val)) inpSl.value = val * 2;
-            else inpSl.value = "";
-            resetAlerts('sl');
-        });
+    
+        inpRsi.addEventListener('input', () => resetAlerts('rsi'));
+        inpSl.addEventListener('input', () => resetAlerts('sl'));
         inpTp.addEventListener('input', () => resetAlerts('tp'));
         inpAny.addEventListener('input', () => resetAlerts('any'));
 
         function resetAlerts(type) {
+            if (type === 'rsi') cardRsi.classList.remove('hit-rsi');
             if (type === 'tp') cardTp.classList.remove('hit-tp');
             if (type === 'sl') cardSl.classList.remove('hit-sl');
             if (type === 'any') cardAny.classList.remove('hit-any');
@@ -338,29 +346,59 @@
         }
 
         function checkCustomAlerts(currentMainGap, currentOrigGap) {
-            const NOW = Date.now(); const DELAY = 5000;
+            const NOW = Date.now(); 
+            const DELAY = 4000; // Thời gian chặn gửi lặp lại (5 giây)
+                    // --- RSI ALERT LOGIC ---
+            const rsiTarget = parseFloat(inpRsi.value);
+            const rsiCurrent = parseFloat(document.getElementById('rsi-val')?.innerText || 0);
+            
+            if (!isNaN(rsiTarget) && rsiTarget > 0 && (NOW - lastAlertTime.any > DELAY)) {
+                const isHitRsi = rsiTarget > 50 ? rsiCurrent >= rsiTarget : rsiCurrent <= rsiTarget;
+                if (isHitRsi) {
+                    lastAlertTime.any = NOW;
+                    sendTelegram(`⚠️ RSI ALERT: ${rsiCurrent.toFixed(2)} (Target: ${rsiTarget})`);
+                    cardRsi.classList.add('hit-rsi');
+                    playCustomSound('any');
+                    speak("RSI Alert");
+                    setTimeout(() => cardRsi.classList.remove('hit-rsi'), 1000);
+                }
+            }
+
+            // Kiểm tra TP (Giả sử TP là số dương, dùng >=)
             const tpVal = parseInt(inpTp.value);
-            if (!isNaN(tpVal) && currentOrigGap === tpVal && (NOW - lastAlertTime.tp > DELAY)) {
-                lastAlertTime.tp = NOW; cardTp.classList.add('hit-tp');
-                playCustomSound('tp'); speak("Take Profit");
-                sendTelegram(`TP HIT (ORIGIN): ${tpVal} ✅`);
+            if (!isNaN(tpVal) && currentOrigGap >= tpVal && (NOW - lastAlertTime.tp > DELAY)) {
+                lastAlertTime.tp = NOW;
+                sendTelegram(`TP HIT: ${currentOrigGap} ✅`); // Gửi Tele ngay lập tức
+                cardTp.classList.add('hit-tp');
+                playCustomSound('tp'); 
+                speak("Take Profit");
                 setTimeout(() => cardTp.classList.remove('hit-tp'), 1000);
             }
+        
+            // Kiểm tra SL (Giả sử SL là số âm, dùng <=)
             const slVal = parseInt(inpSl.value);
-            if (!isNaN(slVal) && currentOrigGap === slVal && (NOW - lastAlertTime.sl > DELAY)) {
-                lastAlertTime.sl = NOW; cardSl.classList.add('hit-sl');
-                playCustomSound('sl'); speak("Stop Loss");
-                sendTelegram(`SL HIT (ORIGIN): ${slVal} 🆘`);
+            if (!isNaN(slVal) && currentOrigGap <= slVal && (NOW - lastAlertTime.sl > DELAY)) {
+                lastAlertTime.sl = NOW;
+                sendTelegram(`SL HIT: ${currentOrigGap} 🆘`);
+                cardSl.classList.add('hit-sl');
+                playCustomSound('sl'); 
+                speak("Stop Loss");
                 setTimeout(() => cardSl.classList.remove('hit-sl'), 1000);
             }
+        
+            // Kiểm tra ANY (Alert theo M15 Gap)
             const anyVal = parseInt(inpAny.value);
-            if (!isNaN(anyVal) && currentMainGap === anyVal && (NOW - lastAlertTime.any > DELAY)) {
-                lastAlertTime.any = NOW; cardAny.classList.add('hit-any');
-                playCustomSound('any'); speak("Alert");
-                sendTelegram(`ALERT (M15): ${anyVal} ☑️`);
+            const isHitAny = anyVal > 0 ? currentMainGap >= anyVal : currentMainGap <= anyVal;
+            if (!isNaN(anyVal) && isHitAny && (NOW - lastAlertTime.any > DELAY)) {
+                lastAlertTime.any = NOW;
+                sendTelegram(`ALERT (M15): ${currentMainGap} ☑️`);
+                cardAny.classList.add('hit-any');
+                playCustomSound('any'); 
+                speak("Alert");
                 setTimeout(() => cardAny.classList.remove('hit-any'), 1000);
             }
         }
+
 
         function playCustomSound(type) {
             if (isMuted) return; if (!audioStarted) return;
@@ -485,21 +523,36 @@
         });
 
         // --- WEBSOCKET FIXED: KÍCH HOẠT RENDER TRÊN MỌI TICK ---
-        const ws = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker/ethbtc@ticker");
-        ws.onmessage = (e) => {
-            const d = JSON.parse(e.data);
-            
-            // 1. Cập nhật giá lẻ (để tính toán Visual Momentum)
-            if (d.s === "BTCUSDT") { market.btc = parseFloat(d.c); render(); } 
-            if (d.s === "ETHUSDT") { market.eth = parseFloat(d.c); render(); }
+                let ws; 
+                function connectWS() {
+                    // Khởi tạo kết nối
+                    ws = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker/ethbtc@ticker");
+        
+                    ws.onmessage = (e) => {
+                        const d = JSON.parse(e.data);
+                        // Cập nhật giá và Momentum
+                        if (d.s === "BTCUSDT") { market.btc = parseFloat(d.c); render(); } 
+                        if (d.s === "ETHUSDT") { market.eth = parseFloat(d.c); render(); }
+                        if (d.s === "ETHBTC") {
+                            market.ratio = parseFloat(d.c);
+                            updateRealtimeCalc();
+                            render();
+                        }
+                    };
+        
+                    // Tự động kết nối lại sau 3 giây nếu rớt mạng
+                    ws.onclose = () => {
+                        console.log("WS Closed. Retrying...");
+                        setTimeout(connectWS, 3000); 
+                    };
+        
+                    ws.onerror = () => ws.close(); 
+                }
+        
+                // KÍCH HOẠT LỆNH CHẠY
+                connectWS(); 
 
-            // 2. Cập nhật giá Ratio chuẩn (để tính toán EMA/GAP)
-            if (d.s === "ETHBTC") {
-                market.ratio = parseFloat(d.c);
-                updateRealtimeCalc();
-                render();
-            }
-        };
+
 
         function calcDynamicGap(pivotD, pivotP, currentD, currentP) {
             if (!pivotD || !pivotP || !currentD || !currentP) return { fv: 0, gap: 0 };
@@ -535,6 +588,14 @@
             updateRow('row-50', 'gap-50', 'fv-50', resH1_50);
             updateRow('row-100', 'gap-100', 'fv-100', resH1_100);
             updateRow('row-200', 'gap-200', 'fv-200', resH1_200);
+            // Chèn ngay dưới dòng updateRow 200
+            const rOrig = document.getElementById('row-orig');
+            const r100 = document.getElementById('row-100');
+            
+            // Nếu EMA100 không có tín hiệu (không phát sáng), ép EMA Gốc tắt phát sáng
+            if (!r100.classList.contains('alert-long') && !r100.classList.contains('alert-short')) {
+                rOrig.classList.remove('alert-long', 'alert-short');
+            }
 
             const mainGap = resM15.gap;
             const bigGapEl = document.getElementById('market-gap');
@@ -569,30 +630,26 @@
             const now = Date.now();
             const visualRatio = market.eth / market.btc; // Tính tỉ giá "ảo" để hiển thị xung lực
 
-            if (refVisualRatio === 0) refVisualRatio = visualRatio;
-
-            if (now - lastMomentumCheck > 500) {
-                // So sánh visualRatio thay vì market.ratio
+                        // 1. Tăng tần suất kiểm tra (400ms thay vì 500ms)
+            if (now - lastMomentumCheck > 400) { 
                 currentDiff = (visualRatio - refVisualRatio) / refVisualRatio * 100;
                 refVisualRatio = visualRatio;
                 lastMomentumCheck = now;
             }
-
+            
+            // 2. Tăng cường độ hiển thị (Multiplier 3000 thay vì 2000)
+            let vPower = Math.min(Math.abs(currentDiff) * 3000, 50); 
             let vBar = document.getElementById('velocity-bar');
-            let scopeEl = document.getElementById('scope-bg');
-            let vPower = Math.min(Math.abs(currentDiff) * 2000, 50);
 
-            scopeEl.classList.remove('buy-flow', 'sell-flow');
-
-            if (currentDiff > 0.00005) {
+            // 3. Tăng độ nhạy kích hoạt (0.00002 thay vì 0.00005)
+            scopeBg.classList.remove('buy-flow', 'sell-flow');
+            if (currentDiff > 0.00002) {
                 vBar.style.left = "50%"; vBar.style.width = vPower + "%";
-                vBar.style.backgroundColor = "var(--cyan)"; scopeEl.classList.add('buy-flow');
-            }
-            else if (currentDiff < -0.00005) {
+                vBar.style.backgroundColor = "var(--cyan)"; scopeBg.classList.add('buy-flow');
+            } else if (currentDiff < -0.00002) {
                 vBar.style.left = (50 - vPower) + "%"; vBar.style.width = vPower + "%";
-                vBar.style.backgroundColor = "var(--down)"; scopeEl.classList.add('sell-flow');
-            }
-            else { vBar.style.width = "0%"; }
+                vBar.style.backgroundColor = "var(--down)"; scopeBg.classList.add('sell-flow');
+            } else { vBar.style.width = "0%"; }
         }
         
         function updateRow(rowId, gapId, fvId, res) {
@@ -658,12 +715,17 @@
             if (appState === 0) { appState = 1; inputEl.readOnly = false; inputEl.classList.add('manual-mode'); labelEl.innerText = "BTC.D REF (MANUAL)"; labelEl.style.color = "var(--text-dim)"; inputEl.focus(); }
             else { appState = 0; inputEl.readOnly = true; inputEl.classList.remove('manual-mode'); labelEl.innerText = "BTC.D REF (AUTO)"; labelEl.style.color = "var(--cyan)"; if (market.btcd_live > 0) inputEl.value = market.btcd_live.toFixed(2); render(); }
         }
-        const persistFields = ['inp-entry', 'inp-tp', 'inp-any'];
+        const persistFields = ['inp-rsi', 'inp-tp', 'inp-sl', 'inp-any'];
         persistFields.forEach(id => {
-            const savedVal = localStorage.getItem(id); const el = document.getElementById(id);
-            if (savedVal !== null) { el.value = savedVal; if (id === 'inp-entry' && savedVal !== "") { const slEl = document.getElementById('inp-sl'); if (slEl) slEl.value = parseInt(savedVal) * 2; } }
+            const savedVal = localStorage.getItem(id); 
+            const el = document.getElementById(id);
+        
+            // Lệnh này để tự động điền lại số cũ bạn đã nhập khi load trang
+            if (savedVal !== null) el.value = savedVal; 
+        
             el.addEventListener('input', () => { localStorage.setItem(id, el.value); });
         });
+
     </script>
 </body>
 
